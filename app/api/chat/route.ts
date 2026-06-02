@@ -39,25 +39,31 @@ async function fetchContext(message: string, type: string): Promise<unknown> {
   try {
     if (type === 'work_stats') {
       const title = extractTitle(message)
-      const { data } = await supabase.rpc('get_work_stats', { p_title: title || message })
-      return data
+      const { data, error } = await supabase.rpc('get_work_stats', { p_title: title || message })
+      if (error) throw error
+      return data ?? { message: '해당 작품을 찾을 수 없어요' }
     }
     if (type === 'reviews') {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('reviews')
         .select('title, platform, rating, short_review')
         .order('rating', { ascending: false })
         .limit(20)
-      return data
+      if (error) throw error
+      return data ?? []
     }
     if (type === 'recommendation') {
-      const { data } = await supabase.rpc('get_top_rated_works', { p_min_rating: 4.0 })
-      return data
+      const { data, error } = await supabase.rpc('get_top_rated_works', { p_min_rating: 4.0 })
+      if (error) throw error
+      // RPC가 null 반환 = 평점 높은 리뷰 없음 (DB 오류 아님)
+      return data ?? []
     }
     // summary (default)
-    const { data } = await supabase.rpc('get_spending_summary')
+    const { data, error } = await supabase.rpc('get_spending_summary')
+    if (error) throw error
     return data
   } catch {
+    // 실제 오류(테이블 없음, 네트워크 등)만 null 반환
     return null
   }
 }
@@ -90,7 +96,9 @@ export async function POST(req: NextRequest) {
         {
           type: 'text',
           text: `\n\n아래는 현재 질문과 관련된 실제 데이터야:\n${JSON.stringify(
-            dataContext ?? '데이터를 불러오지 못했어. DB 설정을 확인해줘.',
+            dataContext !== null
+              ? dataContext
+              : { error: 'DB를 불러오지 못했어요. schema.sql 실행과 CSV 임포트가 완료됐는지 확인해주세요.' },
             null,
             2,
           )}`,
