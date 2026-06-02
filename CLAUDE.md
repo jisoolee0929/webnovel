@@ -466,3 +466,35 @@ app/layout.tsx (Server Component)
 - `npm run build` → TypeScript 오류 없음
 - `GET /`, `GET /reviews` → 200 OK
 - WorkDetailModal 번들 포함 확인 (월별 구매 추이 텍스트 bundle에서 검색됨)
+
+---
+
+### ✅ 5단계 — AI 챗봇 사이드패널 (2026-06-02 완료)
+
+**생성된 파일**
+
+| 파일 | 설명 |
+|------|------|
+| `app/api/chat/route.ts` | POST 핸들러 — 질문 분류·Supabase fetch·Anthropic API·DB 저장 |
+| `components/chat/ChatPanel.tsx` | 메인 사이드패널 (`'use client'`) |
+| `components/chat/ChatMessage.tsx` | 유저/어시스턴트 말풍선 |
+| `components/chat/TypingIndicator.tsx` | 3점 bounce 로딩 애니메이션 |
+| `components/chat/SuggestedQuestions.tsx` | 추천 질문 4개 버튼 |
+| `components/ClientLayout.tsx` | ChatSidebar → ChatPanel 교체 |
+
+**API Route 처리 흐름**
+1. 질문 키워드 분류 (LLM 호출 없이 regex)
+   - `얼마|샀어|결제|구매` → `get_work_stats(title)` RPC
+   - `몇 점|평점|리뷰|\d+점` → `reviews` 테이블 직접 조회
+   - `추천|취향|비슷한` → `get_top_rated_works()` RPC
+   - 그 외 → `get_spending_summary()` RPC
+2. Anthropic API 호출 (`claude-sonnet-4-6`, max_tokens: 1000)
+   - 정적 system prompt: `cache_control: { type: 'ephemeral' }` 프롬프트 캐싱 적용
+   - 동적 data context: 별도 text block (캐싱 제외)
+3. `chat_messages` 테이블에 user + assistant 각 1행 저장
+4. 대화 초기화: 클라이언트 state reset + Supabase delete
+
+**테스트 결과**
+- `npm run build` → TypeScript 오류 없음, `/api/chat` 라우트 `ƒ`(Dynamic) 확인
+- `POST /api/chat` → 빈 메시지: `{"error":"메시지를 입력해주세요"}` ✅
+- `POST /api/chat` → 실제 메시지: Anthropic API 호출 확인 (크레딧 부족 시 과금 오류 반환, 코드 정상)
