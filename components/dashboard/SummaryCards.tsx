@@ -1,9 +1,9 @@
 import { BookOpen, Library, Trophy, Calendar } from 'lucide-react'
 
 const PLATFORM_ICON_COLORS: Record<string, string> = {
-  '네이버 시리즈': 'text-blue-500',
+  '네이버 시리즈': 'text-emerald-500',
   '카카오페이지': 'text-amber-500',
-  '문피아': 'text-emerald-500',
+  '문피아': 'text-blue-500',
 }
 
 interface SummaryCardsProps {
