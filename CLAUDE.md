@@ -406,3 +406,31 @@ app/layout.tsx (Server Component)
 **테스트 결과**
 - `npm run build` → TypeScript 오류 없음, `/` 라우트 `ƒ`(Dynamic) 확인
 - `GET /` → 200 OK, 5개 섹션 모두 렌더링 확인 (요약카드·도넛·라인·바·테이블)
+
+---
+
+### ✅ 3단계 — 리뷰 페이지 (2026-06-02 완료)
+
+**생성된 파일**
+
+| 파일 | 설명 |
+|------|------|
+| `types/review.ts` | `Review`, `ReviewFormData` 타입 정의 |
+| `app/reviews/page.tsx` | Server Component, 초기 reviews fetch → ReviewPageClient |
+| `components/reviews/ReviewPageClient.tsx` | `'use client'` — 전체 상태·CRUD·필터 관리 |
+| `components/reviews/ReviewStats.tsx` | 총 리뷰 수, 평균 평점, 평점 분포 바 차트 (5개 미만 숨김) |
+| `components/reviews/ReviewCard.tsx` | 리뷰 카드 — 제목·배지·별점·기간·본문(더보기)·수정·삭제 |
+| `components/reviews/ReviewModal.tsx` | 작성/수정 모달 — 유효성 검사, 500자 카운터 |
+| `components/reviews/StarRating.tsx` | 표시 전용 별점 (full/half/empty) |
+| `components/reviews/StarInput.tsx` | 클릭형 별점 입력 (0.5점 단위, hover 미리보기) |
+
+**주요 구현 사항**
+- Half-star: `position: relative` + `overflow-hidden` + `width: 50%` CSS 클립 방식
+- 삭제 확인: `window.confirm` 대신 카드 내 인라인 확인 UI
+- 리뷰 긴 텍스트: 120자 이상이면 `line-clamp-2` + "더보기" 토글
+- 작품명 클릭 → `WorkDetailModal`, "리뷰 작성하기" 클릭 → `ReviewModal` 자동 연동
+- CRUD 후 Supabase에서 전체 재조회 (낙관적 업데이트 대신 단순화)
+
+**테스트 결과**
+- `npm run build` → TypeScript 오류 없음, `/reviews` 라우트 `ƒ`(Dynamic) 확인
+- `GET /reviews` → 200 OK, 모든 UI 요소 렌더링 확인 (검색·필터·FAB 버튼)
