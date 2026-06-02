@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
+
+// Vercel Serverless Function 최대 실행 시간 (Hobby: 10s, Pro: 최대 300s)
+export const maxDuration = 30
 import { anthropic } from '@/lib/anthropic'
 import { createClient } from '@supabase/supabase-js'
 
