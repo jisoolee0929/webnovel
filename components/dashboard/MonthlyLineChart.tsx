@@ -69,7 +69,7 @@ export default function MonthlyLineChart({ data }: MonthlyLineChartProps) {
             <Line
               type="monotone"
               dataKey="naver_count"
-              stroke="#3B82F6"
+              stroke="#10B981"
               dot={false}
               strokeWidth={2}
               activeDot={{ r: 4 }}
@@ -85,7 +85,7 @@ export default function MonthlyLineChart({ data }: MonthlyLineChartProps) {
             <Line
               type="monotone"
               dataKey="munpia_count"
-              stroke="#10B981"
+              stroke="#3B82F6"
               dot={false}
               strokeWidth={2}
               activeDot={{ r: 4 }}

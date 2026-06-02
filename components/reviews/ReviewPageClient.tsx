@@ -12,9 +12,9 @@ import type { Review, ReviewFormData } from '@/types/review'
 const PLATFORMS = ['전체', '네이버 시리즈', '카카오페이지', '문피아']
 const PLATFORM_ACTIVE: Record<string, string> = {
   '전체': 'bg-gray-900 text-white dark:bg-white dark:text-gray-900',
-  '네이버 시리즈': 'bg-blue-500 text-white',
+  '네이버 시리즈': 'bg-emerald-500 text-white',
   '카카오페이지': 'bg-amber-500 text-white',
-  '문피아': 'bg-emerald-500 text-white',
+  '문피아': 'bg-blue-500 text-white',
 }
 
 interface ReviewPageClientProps {

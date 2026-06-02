@@ -3,9 +3,9 @@
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 const PLATFORM_COLORS: Record<string, string> = {
-  '네이버 시리즈': '#3B82F6',
+  '네이버 시리즈': '#10B981',
   '카카오페이지': '#F59E0B',
-  '문피아': '#10B981',
+  '문피아': '#3B82F6',
 }
 
 interface PlatformDonutProps {
