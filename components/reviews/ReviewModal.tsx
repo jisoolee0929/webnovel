@@ -34,6 +34,7 @@ export default function ReviewModal({
 }: ReviewModalProps) {
   const [form, setForm] = useState<ReviewFormData>(EMPTY_FORM)
   const [errors, setErrors] = useState<Partial<Record<keyof ReviewFormData, string>>>({})
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -74,8 +75,11 @@ export default function ReviewModal({
     e.preventDefault()
     if (!validate()) return
     setSaving(true)
+    setSaveError(null)
     try {
       await onSave(form)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : '저장에 실패했습니다')
     } finally {
       setSaving(false)
     }
@@ -178,6 +182,15 @@ export default function ReviewModal({
               {form.short_review.length} / {MAX_CHARS}
             </p>
           </div>
+
+          {/* 저장 오류 */}
+          {saveError && (
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+              {saveError.includes('schema cache') || saveError.includes('does not exist')
+                ? 'DB가 설정되지 않았습니다. Supabase SQL Editor에서 schema.sql을 먼저 실행해주세요.'
+                : `저장 실패: ${saveError}`}
+            </p>
+          )}
 
           {/* 버튼 */}
           <div className="flex justify-end gap-3 pt-1">
