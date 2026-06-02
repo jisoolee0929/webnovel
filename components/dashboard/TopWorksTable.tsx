@@ -2,6 +2,9 @@
 
 import { useState } from 'react'
 import WorkDetailModal from '@/components/WorkDetailModal'
+import ReviewModal from '@/components/reviews/ReviewModal'
+import { supabase } from '@/lib/supabase'
+import type { ReviewFormData } from '@/types/review'
 
 const PLATFORM_BADGE: Record<string, string> = {
   '네이버 시리즈': 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
@@ -21,6 +24,20 @@ interface TopWorksTableProps {
 
 export default function TopWorksTable({ works }: TopWorksTableProps) {
   const [selectedWork, setSelectedWork] = useState<Work | null>(null)
+  const [reviewPrefill, setReviewPrefill] = useState<{ title: string; platform: string } | null>(null)
+
+  const handleSaveReview = async (data: ReviewFormData) => {
+    const { error } = await supabase.from('reviews').insert({
+      platform: data.platform,
+      title: data.title,
+      read_start_date: data.read_start_date || null,
+      read_end_date: data.read_end_date || null,
+      rating: data.rating || null,
+      short_review: data.short_review || null,
+    })
+    if (error) throw new Error(error.message)
+    setReviewPrefill(null)
+  }
 
   return (
     <>
@@ -81,12 +98,28 @@ export default function TopWorksTable({ works }: TopWorksTableProps) {
         </div>
       </div>
 
+      {/* 작품 상세 모달 */}
       {selectedWork && (
         <WorkDetailModal
           title={selectedWork.title}
           platform={selectedWork.platform}
           isOpen={true}
           onClose={() => setSelectedWork(null)}
+          onOpenReviewModal={(title, platform) => {
+            setSelectedWork(null)
+            setReviewPrefill({ title, platform })
+          }}
+        />
+      )}
+
+      {/* 리뷰 작성 모달 (WorkDetailModal에서 연결) */}
+      {reviewPrefill && (
+        <ReviewModal
+          review={null}
+          initialTitle={reviewPrefill.title}
+          initialPlatform={reviewPrefill.platform}
+          onSave={handleSaveReview}
+          onClose={() => setReviewPrefill(null)}
         />
       )}
     </>
