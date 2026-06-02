@@ -374,3 +374,35 @@ app/layout.tsx (Server Component)
 - `GET /` → 200 OK, `<title>웹소설 트래커</title>` 확인
 - `GET /reviews` → 200 OK
 - `.env.local` 로드 확인 (빌드 시 Environments: .env.local 출력됨)
+
+---
+
+### ✅ 2단계 — 대시보드 페이지 (2026-06-02 완료)
+
+**생성된 파일**
+
+| 파일 | 설명 |
+|------|------|
+| `app/page.tsx` | Server Component, Supabase 병렬 fetch, `force-dynamic` |
+| `app/loading.tsx` | 스켈레톤 로딩 UI (Suspense 자동 연동) |
+| `components/dashboard/SummaryCards.tsx` | 요약 카드 4개 (Server Component) |
+| `components/dashboard/PlatformDonut.tsx` | 플랫폼별 도넛 차트 (`'use client'`, recharts) |
+| `components/dashboard/MonthlyLineChart.tsx` | 월별 편수 라인 차트 (`'use client'`, recharts) |
+| `components/dashboard/TopWorksTable.tsx` | Top 10 작품 테이블, 클릭 시 모달 연동 |
+| `components/dashboard/DayOfWeekBar.tsx` | 요일별 바 차트 (`'use client'`, recharts) |
+| `components/WorkDetailModal.tsx` | 작품 상세 모달 skeleton (4단계에서 내용 채울 것) |
+
+**데이터 fetch 구조**
+- `works` 테이블: 요약 카드(편수 합계, 작품 수, 상위 플랫폼), Top 10
+- `transactions` 테이블: 첫 거래일(생활 기간 계산), 플랫폼별 COUNT, 요일별 COUNT
+- `monthly_summary` 테이블: 월별 라인 차트 (munpia_count / kakao_count / naver_count)
+- 민감 데이터 처리: `total_amount_krw`는 정렬용으로만 조회 후 컴포넌트에 미전달
+
+**주요 구현 사항**
+- Tooltip formatter recharts `ValueType | undefined` 타입 → `Number(value)` 변환 처리
+- 요일별 바 차트: 최대값 막대를 짙은 파란색(`#3B82F6`)으로 강조
+- `/ (Dashboard)` 빌드 타입: `ƒ` (Dynamic, force-dynamic)
+
+**테스트 결과**
+- `npm run build` → TypeScript 오류 없음, `/` 라우트 `ƒ`(Dynamic) 확인
+- `GET /` → 200 OK, 5개 섹션 모두 렌더링 확인 (요약카드·도넛·라인·바·테이블)
