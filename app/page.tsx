@@ -31,8 +31,7 @@ export default async function DashboardPage() {
       supabase
         .from('works')
         .select('platform, title, purchase_count, total_amount_krw')
-        .order('total_amount_krw', { ascending: false })
-        .limit(10),
+        .order('total_amount_krw', { ascending: false }),
       Promise.all(
         PLATFORMS.map((p) =>
           supabase
