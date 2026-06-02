@@ -30,8 +30,8 @@ export default async function DashboardPage() {
         .order('year_month', { ascending: true }),
       supabase
         .from('works')
-        .select('platform, title, purchase_count, total_amount_krw')
-        .order('total_amount_krw', { ascending: false }),
+        .select('platform, title, purchase_count')
+        .order('purchase_count', { ascending: false }),
       Promise.all(
         PLATFORMS.map((p) =>
           supabase
@@ -89,12 +89,8 @@ export default async function DashboardPage() {
       count: dowResults[i].count ?? 0,
     }))
 
-    // Top 10 작품 — total_amount_krw는 정렬에만 사용, 컴포넌트에 전달 안 함
-    const topWorks = (topWorksResult.data ?? []).map(({ platform, title, purchase_count }) => ({
-      platform,
-      title,
-      purchase_count,
-    }))
+    // 작품 랭킹 — purchase_count 내림차순
+    const topWorks = topWorksResult.data ?? []
 
     return (
       <div className="space-y-6">
