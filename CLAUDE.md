@@ -434,3 +434,35 @@ app/layout.tsx (Server Component)
 **테스트 결과**
 - `npm run build` → TypeScript 오류 없음, `/reviews` 라우트 `ƒ`(Dynamic) 확인
 - `GET /reviews` → 200 OK, 모든 UI 요소 렌더링 확인 (검색·필터·FAB 버튼)
+
+---
+
+### ✅ 4단계 — 작품 상세 모달 (2026-06-02 완료)
+
+**수정된 파일**
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `components/WorkDetailModal.tsx` | placeholder → 전체 구현 |
+| `components/dashboard/TopWorksTable.tsx` | `onOpenReviewModal` + `ReviewModal` 연동 |
+
+**WorkDetailModal 구현 내용**
+- 모달 오픈 시 `useEffect`로 3개 쿼리 병렬 fetch (cleanup 함수로 취소 처리)
+- `works_public` 뷰: 구매 편수 (total_amount_krw 미표시)
+- `transactions_public` 뷰: year_month만 fetch → JS에서 집계 (GROUP BY 대체)
+- `reviews` 테이블: 평점 + 리뷰 본문 + 읽은 기간
+- 월별 미니 바 차트: 플랫폼 색상 적용, 높이 112px
+- 리뷰 없음 상태: "아직 리뷰가 없어요" + "리뷰 작성하기" 버튼
+- "리뷰 작성하기" 클릭 시: WorkDetailModal 닫고 → ReviewModal 자동 연동
+- 로딩 중 스켈레톤 UI 3단계 표시
+
+**연동 흐름**
+```
+대시보드 TopWorksTable  →  WorkDetailModal  →  ReviewModal (리뷰 없을 때)
+리뷰 페이지 ReviewCard   →  WorkDetailModal  →  ReviewModal (리뷰 없을 때)
+```
+
+**테스트 결과**
+- `npm run build` → TypeScript 오류 없음
+- `GET /`, `GET /reviews` → 200 OK
+- WorkDetailModal 번들 포함 확인 (월별 구매 추이 텍스트 bundle에서 검색됨)
