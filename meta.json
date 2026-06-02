@@ -1,0 +1,83 @@
+{
+  "total_transactions": 14703,
+  "total_works": 235,
+  "total_amount_krw": 1469870,
+  "period_start": "2018-03-04",
+  "period_end": "2026-06-01",
+  "platforms": {
+    "네이버 시리즈": 7425,
+    "카카오페이지": 3769,
+    "문피아": 3509
+  },
+  "top10_works": [
+    {
+      "platform": "네이버 시리즈",
+      "title": "약먹는 천재마법사",
+      "purchase_count": 843,
+      "total_amount_krw": 83300
+    },
+    {
+      "platform": "카카오페이지",
+      "title": "리라이프 플레이어",
+      "purchase_count": 471,
+      "total_amount_krw": 64100
+    },
+    {
+      "platform": "네이버 시리즈",
+      "title": "화산귀환",
+      "purchase_count": 579,
+      "total_amount_krw": 56700
+    },
+    {
+      "platform": "네이버 시리즈",
+      "title": "종말의 뱀이 되었다",
+      "purchase_count": 424,
+      "total_amount_krw": 39700
+    },
+    {
+      "platform": "카카오페이지",
+      "title": "전생검신",
+      "purchase_count": 373,
+      "total_amount_krw": 37300
+    },
+    {
+      "platform": "네이버 시리즈",
+      "title": "하라간",
+      "purchase_count": 340,
+      "total_amount_krw": 34000
+    },
+    {
+      "platform": "네이버 시리즈",
+      "title": "선협의 뱀이 되었다",
+      "purchase_count": 342,
+      "total_amount_krw": 32600
+    },
+    {
+      "platform": "네이버 시리즈",
+      "title": "천화일로",
+      "purchase_count": 401,
+      "total_amount_krw": 31300
+    },
+    {
+      "platform": "문피아",
+      "title": "절대 검감(絶對 劍感)",
+      "purchase_count": 292,
+      "total_amount_krw": 28500
+    },
+    {
+      "platform": "문피아",
+      "title": "70억분의 1의 이레귤러",
+      "purchase_count": 292,
+      "total_amount_krw": 28000
+    }
+  ],
+  "day_of_week_pattern": {
+    "금": 195770,
+    "목": 164500,
+    "수": 223300,
+    "월": 201050,
+    "일": 229450,
+    "토": 220900,
+    "화": 229500
+  }
+}
