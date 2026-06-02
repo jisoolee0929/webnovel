@@ -54,25 +54,23 @@ export default function ReviewPageClient({ initialReviews }: ReviewPageClientPro
   }, [])
 
   const handleSave = async (data: ReviewFormData) => {
-    if (editingReview) {
-      await supabase.from('reviews').update({
-        platform: data.platform,
-        title: data.title,
-        read_start_date: data.read_start_date || null,
-        read_end_date: data.read_end_date || null,
-        rating: data.rating || null,
-        short_review: data.short_review || null,
-      }).eq('id', editingReview.id)
-    } else {
-      await supabase.from('reviews').insert({
-        platform: data.platform,
-        title: data.title,
-        read_start_date: data.read_start_date || null,
-        read_end_date: data.read_end_date || null,
-        rating: data.rating || null,
-        short_review: data.short_review || null,
-      })
+    const payload = {
+      platform: data.platform,
+      title: data.title,
+      read_start_date: data.read_start_date || null,
+      read_end_date: data.read_end_date || null,
+      rating: data.rating || null,
+      short_review: data.short_review || null,
     }
+
+    if (editingReview) {
+      const { error } = await supabase.from('reviews').update(payload).eq('id', editingReview.id)
+      if (error) throw new Error(error.message)
+    } else {
+      const { error } = await supabase.from('reviews').insert(payload)
+      if (error) throw new Error(error.message)
+    }
+
     await refreshReviews()
     setIsReviewModalOpen(false)
     setEditingReview(null)

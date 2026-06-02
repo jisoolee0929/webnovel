@@ -51,6 +51,10 @@ export default async function DashboardPage() {
       ),
     ])
 
+    // Supabase 는 에러를 throw 하지 않고 { error } 로 반환 — 명시적으로 확인
+    if (worksResult.error) throw new Error(worksResult.error.message)
+    if (firstTxResult.error) throw new Error(firstTxResult.error.message)
+
     const worksData = worksResult.data ?? []
 
     // 총 구매 편수 (purchase_count 합계)
@@ -109,10 +113,29 @@ export default async function DashboardPage() {
         <TopWorksTable works={topWorks} />
       </div>
     )
-  } catch {
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : '알 수 없는 오류'
+    const isNotFound = msg.includes('schema cache') || msg.includes('does not exist')
+
     return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-red-500">데이터를 불러오는 중 오류가 발생했습니다.</p>
+      <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
+        <p className="text-lg font-semibold text-red-500">데이터를 불러오지 못했습니다</p>
+        {isNotFound ? (
+          <div className="max-w-md rounded-xl border border-amber-200 bg-amber-50 p-5 text-left dark:border-amber-800 dark:bg-amber-900/20">
+            <p className="mb-3 font-medium text-amber-800 dark:text-amber-300">
+              Supabase DB 초기 설정이 필요합니다
+            </p>
+            <ol className="list-decimal space-y-1.5 pl-4 text-sm text-amber-700 dark:text-amber-400">
+              <li>Supabase 대시보드 → SQL Editor</li>
+              <li>프로젝트의 <code className="rounded bg-amber-100 px-1 dark:bg-amber-900">schema.sql</code> 전체 내용을 붙여넣고 실행</li>
+              <li>Table Editor → CSV 임포트 (순서 중요):<br />
+                <code className="rounded bg-amber-100 px-1 dark:bg-amber-900">monthly_summary.csv → works.csv → transactions.csv</code>
+              </li>
+            </ol>
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">{msg}</p>
+        )}
       </div>
     )
   }
