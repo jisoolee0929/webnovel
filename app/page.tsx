@@ -3,6 +3,7 @@ export const dynamic = 'force-dynamic'
 import { supabase } from '@/lib/supabase'
 import SummaryCards from '@/components/dashboard/SummaryCards'
 import PlatformDonut from '@/components/dashboard/PlatformDonut'
+import GenreDonut from '@/components/dashboard/GenreDonut'
 import MonthlyLineChart from '@/components/dashboard/MonthlyLineChart'
 import TopWorksTable from '@/components/dashboard/TopWorksTable'
 import DayOfWeekBar from '@/components/dashboard/DayOfWeekBar'
@@ -18,6 +19,7 @@ export default async function DashboardPage() {
       firstTxResult,
       monthlySummaryResult,
       topWorksResult,
+      genreWorksResult,
       platformResults,
       dowResults,
     ] = await Promise.all([
@@ -32,6 +34,7 @@ export default async function DashboardPage() {
         .from('works_public')
         .select('platform, title, author, genre, purchase_count')
         .order('purchase_count', { ascending: false }),
+      supabase.from('works_public').select('genre, purchase_count'),
       Promise.all(
         PLATFORMS.map((p) =>
           supabase
@@ -92,6 +95,25 @@ export default async function DashboardPage() {
     // 작품 랭킹 — purchase_count 내림차순
     const topWorks = topWorksResult.data ?? []
 
+    // 장르별 구매 편수 집계 (복수 장르 각각 카운트, 상위 7개 + 기타)
+    const genreMap: Record<string, number> = {}
+    for (const w of genreWorksResult.data ?? []) {
+      const genres = w.genre
+        ? w.genre.split(',').map((g: string) => g.trim()).filter(Boolean)
+        : ['기타']
+      for (const g of genres) {
+        genreMap[g] = (genreMap[g] ?? 0) + (w.purchase_count ?? 0)
+      }
+    }
+    const sortedGenres = Object.entries(genreMap).sort((a, b) => b[1] - a[1])
+    const TOP_N = 7
+    const genreData = [
+      ...sortedGenres.slice(0, TOP_N).map(([genre, count]) => ({ genre, count })),
+      ...(sortedGenres.length > TOP_N
+        ? [{ genre: '기타', count: sortedGenres.slice(TOP_N).reduce((s, [, c]) => s + c, 0) }]
+        : []),
+    ]
+
     return (
       <div className="space-y-6">
         <SummaryCards
@@ -104,6 +126,7 @@ export default async function DashboardPage() {
           <PlatformDonut data={platformCounts} />
           <DayOfWeekBar data={dayOfWeekData} />
         </div>
+        <GenreDonut data={genreData} />
         <MonthlyLineChart data={monthlySummaryResult.data ?? []} />
         <TopWorksTable works={topWorks} />
       </div>
