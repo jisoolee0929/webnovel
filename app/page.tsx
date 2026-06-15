@@ -29,8 +29,8 @@ export default async function DashboardPage() {
         .select('year_month, munpia_count, kakao_count, naver_count')
         .order('year_month', { ascending: true }),
       supabase
-        .from('works')
-        .select('platform, title, purchase_count')
+        .from('works_public')
+        .select('platform, title, author, genre, purchase_count')
         .order('purchase_count', { ascending: false }),
       Promise.all(
         PLATFORMS.map((p) =>

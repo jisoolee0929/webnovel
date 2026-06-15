@@ -25,6 +25,8 @@ const DEFAULT_VISIBLE = 10
 interface Work {
   platform: string
   title: string
+  author: string
+  genre: string
   purchase_count: number
 }
 
@@ -76,6 +78,12 @@ export default function TopWorksTable({ works }: TopWorksTableProps) {
                 <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
                   플랫폼
                 </th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                  장르
+                </th>
+                <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400">
+                  작가
+                </th>
                 <th className="px-5 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400">
                   구매 편수
                 </th>
@@ -112,6 +120,12 @@ export default function TopWorksTable({ works }: TopWorksTableProps) {
                       >
                         {work.platform}
                       </span>
+                    </td>
+                    <td className="px-5 py-3 text-sm text-gray-500 dark:text-gray-400">
+                      {work.genre || '—'}
+                    </td>
+                    <td className="px-5 py-3 text-sm text-gray-500 dark:text-gray-400">
+                      {work.author || '—'}
                     </td>
                     <td className="px-5 py-3 text-right font-medium text-gray-900 dark:text-white">
                       {work.purchase_count.toLocaleString()}편

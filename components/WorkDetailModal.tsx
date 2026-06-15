@@ -19,7 +19,12 @@ const PLATFORM_COLOR: Record<string, string> = {
   '문피아': '#3B82F6',
 }
 
-type WorkInfo = { purchase_count: number }
+type WorkInfo = {
+  purchase_count: number
+  author: string
+  genre: string
+  rating: number | null
+}
 
 type ReviewInfo = {
   id: number
@@ -64,7 +69,7 @@ export default function WorkDetailModal({
       const [workRes, txRes, reviewRes] = await Promise.all([
         supabase
           .from('works_public')
-          .select('purchase_count')
+          .select('purchase_count, author, genre, rating')
           .eq('title', title)
           .eq('platform', platform)
           .maybeSingle(),
@@ -160,6 +165,17 @@ export default function WorkDetailModal({
                       {work.purchase_count.toLocaleString()}편
                     </p>
                   </div>
+                </div>
+              )}
+
+              {/* 작가 · 장르 · 플랫폼 별점 */}
+              {work && (work.author || work.genre || work.rating !== null) && (
+                <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-sm text-gray-600 dark:text-gray-400">
+                  {work.author && <span>✍️ {work.author}</span>}
+                  {work.genre && <span>📚 {work.genre}</span>}
+                  {work.rating !== null && work.rating !== undefined && (
+                    <span>⭐ {work.rating} / 10</span>
+                  )}
                 </div>
               )}
 
