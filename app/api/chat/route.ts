@@ -23,9 +23,15 @@ const STATIC_SYSTEM = `너는 사용자의 웹소설 결제 및 리뷰 데이터
 5. 답변은 3~5문장으로 간결하게. 필요하면 불릿 리스트 사용.
 6. 이모지를 적당히 써서 읽기 편하게 해줘.`
 
-function classifyQuestion(msg: string): 'work_stats' | 'reviews' | 'recommendation' | 'summary' {
+const GENRE_KEYWORDS = [
+  '무협', '판타지', '로맨스', '현대', '회귀', '헌터',
+  '아포칼립스', '게임', '먹방', '육아', '학원',
+]
+
+function classifyQuestion(msg: string): 'work_stats' | 'reviews' | 'recommendation' | 'genre' | 'summary' {
   if (/얼마|샀어|결제|구매/.test(msg)) return 'work_stats'
   if (/몇\s*점|평점|리뷰|별점|\d+점/.test(msg)) return 'reviews'
+  if (/장르/.test(msg) || GENRE_KEYWORDS.some((g) => msg.includes(g))) return 'genre'
   if (/추천|좋아할|비슷한|취향/.test(msg)) return 'recommendation'
   return 'summary'
 }
@@ -59,6 +65,20 @@ async function fetchContext(message: string, type: string): Promise<unknown> {
       const { data, error } = await supabase.rpc('get_top_rated_works', { p_min_rating: 4.0 })
       if (error) throw error
       // RPC가 null 반환 = 평점 높은 리뷰 없음 (DB 오류 아님)
+      return data ?? []
+    }
+    if (type === 'genre') {
+      const extractedGenre = GENRE_KEYWORDS.find((g) => message.includes(g)) ?? ''
+      const query = supabase
+        .from('works')
+        .select('title, platform, author, genre, rating, purchase_count')
+        .order('purchase_count', { ascending: false })
+        .limit(10)
+      if (extractedGenre) {
+        query.ilike('genre', `%${extractedGenre}%`)
+      }
+      const { data, error } = await query
+      if (error) throw error
       return data ?? []
     }
     // summary (default)
