@@ -23,7 +23,12 @@ const STATIC_SYSTEM = `너는 사용자의 웹소설 결제 및 리뷰 데이터
 3. 데이터에 없는 내용을 지어내지 마. 없으면 없다고 솔직하게.
 4. 추천할 때는 반드시 실제 리뷰/결제 데이터 근거를 들어줘.
 5. 답변은 3~5문장으로 간결하게. 필요하면 불릿 리스트 사용.
-6. 이모지를 적당히 써서 읽기 편하게 해줘.`
+6. 이모지를 적당히 써서 읽기 편하게 해줘.
+7. 추천 질문이 들어오면:
+   - 먼저 제공된 DB 데이터에서 사용자의 선호 장르와 고평점 작품을 파악해.
+   - web_search 도구로 그 장르의 최신 인기 웹소설을 검색해줘 (예: "2025 무협 웹소설 추천", "최신 판타지 웹소설 인기작").
+   - DB 데이터 근거와 웹 검색 결과를 결합해서 맞춤 추천을 해줘.
+   - 검색 결과에서 찾은 작품은 "최신 인기작"임을 명시하고, DB에 있는 작품은 "내가 이미 본 작품"임을 구분해서 안내해줘.`
 
 const GENRE_KEYWORDS = [
   '무협', '판타지', '로맨스', '현대', '회귀', '헌터',
@@ -70,13 +75,36 @@ async function fetchContext(message: string, type: string): Promise<unknown> {
       return data ?? []
     }
     if (type === 'recommendation') {
-      const { data, error } = await supabase.rpc('get_top_rated_works', { p_min_rating: 4.0 })
-      if (error) {
-        console.error('[chat] get_top_rated_works error:', error.message)
-        throw error
+      const [ratedResult, worksResult] = await Promise.all([
+        supabase.rpc('get_top_rated_works', { p_min_rating: 4.0 }),
+        supabase
+          .from('works')
+          .select('genre, purchase_count')
+          .not('genre', 'is', null)
+          .neq('genre', '')
+          .order('purchase_count', { ascending: false })
+          .limit(50),
+      ])
+      if (ratedResult.error) {
+        console.error('[chat] get_top_rated_works error:', ratedResult.error.message)
+        throw ratedResult.error
       }
-      // RPC가 null 반환 = 평점 높은 리뷰 없음 (DB 오류 아님)
-      return data ?? []
+      // 복수 장르("무협, 판타지") 쉼표 분리 후 purchase_count 합산
+      const genreMap: Record<string, number> = {}
+      for (const row of worksResult.data ?? []) {
+        if (!row.genre) continue
+        for (const g of row.genre.split(',').map((s: string) => s.trim())) {
+          if (g) genreMap[g] = (genreMap[g] ?? 0) + (row.purchase_count ?? 0)
+        }
+      }
+      const topGenres = Object.entries(genreMap)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([genre, purchase_count]) => ({ genre, purchase_count }))
+      return {
+        top_rated_works: ratedResult.data ?? [],
+        top_genres: topGenres,
+      }
     }
     if (type === 'genre') {
       const extractedGenre = GENRE_KEYWORDS.find((g) => message.includes(g)) ?? ''
@@ -131,35 +159,57 @@ export async function POST(req: NextRequest) {
     const questionType = classifyQuestion(message)
     const dataContext = await fetchContext(message, questionType)
 
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1000,
-      system: [
-        {
-          type: 'text',
-          text: STATIC_SYSTEM,
-          cache_control: { type: 'ephemeral' },
-        },
-        {
-          type: 'text',
-          text: `\n\n아래는 현재 질문과 관련된 실제 데이터야:\n${JSON.stringify(
-            dataContext !== null
-              ? dataContext
-              : { error: 'DB를 불러오지 못했어요. schema.sql 실행과 CSV 임포트가 완료됐는지 확인해주세요.' },
-            null,
-            2,
-          )}`,
-        },
-      ],
-      messages: [
-        ...history.slice(-10).map((h) => ({ role: h.role, content: h.content })),
-        { role: 'user', content: message },
-      ],
-    })
+    const isSearchType = questionType === 'recommendation' || questionType === 'genre'
+
+    const systemBlocks = [
+      {
+        type: 'text' as const,
+        text: STATIC_SYSTEM,
+        cache_control: { type: 'ephemeral' as const },
+      },
+      {
+        type: 'text' as const,
+        text: `\n\n아래는 현재 질문과 관련된 실제 데이터야:\n${JSON.stringify(
+          dataContext !== null
+            ? dataContext
+            : { error: 'DB를 불러오지 못했어요. schema.sql 실행과 CSV 임포트가 완료됐는지 확인해주세요.' },
+          null,
+          2,
+        )}`,
+      },
+    ]
+
+    const tools = isSearchType
+      ? [{ type: 'web_search_20260209' as const, name: 'web_search' as const }]
+      : undefined
+
+    let currentMessages: Anthropic.MessageParam[] = [
+      ...history.slice(-10).map((h) => ({ role: h.role, content: h.content })),
+      { role: 'user', content: message },
+    ]
 
     let assistantText = ''
-    for (const block of response.content) {
-      if (block.type === 'text') assistantText += block.text
+
+    for (let iter = 0; iter < 5; iter++) {
+      const response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: isSearchType ? 2000 : 1000,
+        system: systemBlocks,
+        messages: currentMessages,
+        ...(tools ? { tools } : {}),
+      })
+
+      for (const block of response.content) {
+        if (block.type === 'text') assistantText += block.text
+      }
+
+      if (response.stop_reason !== 'pause_turn') break
+
+      // 서버사이드 도구 루프가 10회 한도에 도달하면 pause_turn 반환 — 전체 대화를 다시 전송해 재개
+      currentMessages = [
+        ...currentMessages,
+        { role: 'assistant', content: response.content as Anthropic.ContentBlockParam[] },
+      ]
     }
 
     // 대화 이력 저장
