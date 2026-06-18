@@ -43,35 +43,79 @@ export default function ChatPanel({ isOpen, onClose }: ChatPanelProps) {
   const sendMessage = async (content: string) => {
     if (!content.trim() || isLoading) return
 
-    const userMsg: Message = { role: 'user', content: content.trim() }
-    setMessages((prev) => [...prev, userMsg])
+    const trimmed = content.trim()
+    setMessages((prev) => [...prev, { role: 'user', content: trimmed }])
     setInput('')
     setIsLoading(true)
+
+    let streamingStarted = false
 
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: content.trim(),
+          message: trimmed,
           session_id: sessionId,
           history: messages.slice(-10),
         }),
       })
 
-      const data = await res.json() as { response?: string; error?: string }
-      if (!res.ok || data.error) throw new Error(data.error ?? '응답 오류')
+      if (!res.ok || !res.body) throw new Error(`서버 오류 (${res.status})`)
 
-      setMessages((prev) => [...prev, { role: 'assistant', content: data.response! }])
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+
+      outer: while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() ?? ''
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          const payload = line.slice(6).trim()
+          if (payload === '[DONE]') break outer
+
+          try {
+            const parsed = JSON.parse(payload) as { chunk?: string; error?: string }
+            if (parsed.error) throw new Error(parsed.error)
+            if (parsed.chunk) {
+              if (!streamingStarted) {
+                // 첫 청크 도착 — 타이핑 인디케이터 숨기고 빈 어시스턴트 메시지 추가
+                streamingStarted = true
+                setIsLoading(false)
+                setMessages((prev) => [...prev, { role: 'assistant', content: parsed.chunk! }])
+              } else {
+                setMessages((prev) => {
+                  const last = prev[prev.length - 1]
+                  return [...prev.slice(0, -1), { ...last, content: last.content + parsed.chunk }]
+                })
+              }
+            }
+          } catch (e) {
+            if (e instanceof SyntaxError) continue
+            throw e
+          }
+        }
+      }
+
+      if (!streamingStarted) {
+        setMessages((prev) => [...prev, { role: 'assistant', content: '응답을 받지 못했어요.' }])
+      }
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : '오류가 발생했어요'
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: `죄송해요, 오류가 발생했어요 🙏\n${errMsg}`,
-        },
-      ])
+      setMessages((prev) => {
+        // 스트리밍 중 에러면 빈 어시스턴트 메시지 제거 후 에러 메시지 추가
+        const base =
+          streamingStarted && prev[prev.length - 1]?.role === 'assistant' && prev[prev.length - 1]?.content === ''
+            ? prev.slice(0, -1)
+            : prev
+        return [...base, { role: 'assistant', content: `죄송해요, 오류가 발생했어요 🙏\n${errMsg}` }]
+      })
     } finally {
       setIsLoading(false)
     }

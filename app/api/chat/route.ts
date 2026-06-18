@@ -144,84 +144,117 @@ async function fetchContext(message: string, type: string): Promise<unknown> {
 }
 
 export async function POST(req: NextRequest) {
+  // 스트림 시작 전에 body 파싱 및 유효성 검사
+  let body: { message: string; session_id: string; history: { role: 'user' | 'assistant'; content: string }[] }
   try {
-    const body = await req.json() as {
-      message: string
-      session_id: string
-      history: { role: 'user' | 'assistant'; content: string }[]
-    }
-    const { message, session_id, history } = body
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: '잘못된 요청입니다' }, { status: 400 })
+  }
 
-    if (!message?.trim()) {
-      return NextResponse.json({ error: '메시지를 입력해주세요' }, { status: 400 })
-    }
+  const { message, session_id, history } = body
 
-    const questionType = classifyQuestion(message)
-    const dataContext = await fetchContext(message, questionType)
+  if (!message?.trim()) {
+    return NextResponse.json({ error: '메시지를 입력해주세요' }, { status: 400 })
+  }
 
-    const isSearchType = questionType === 'recommendation' || questionType === 'genre'
+  const questionType = classifyQuestion(message)
+  const dataContext = await fetchContext(message, questionType)
+  const isSearchType = questionType === 'recommendation' || questionType === 'genre'
 
-    const systemBlocks = [
-      {
-        type: 'text' as const,
-        text: STATIC_SYSTEM,
-        cache_control: { type: 'ephemeral' as const },
-      },
-      {
-        type: 'text' as const,
-        text: `\n\n아래는 현재 질문과 관련된 실제 데이터야:\n${JSON.stringify(
-          dataContext !== null
-            ? dataContext
-            : { error: 'DB를 불러오지 못했어요. schema.sql 실행과 CSV 임포트가 완료됐는지 확인해주세요.' },
-          null,
-          2,
-        )}`,
-      },
-    ]
+  const systemBlocks = [
+    {
+      type: 'text' as const,
+      text: STATIC_SYSTEM,
+      cache_control: { type: 'ephemeral' as const },
+    },
+    {
+      type: 'text' as const,
+      text: `\n\n아래는 현재 질문과 관련된 실제 데이터야:\n${JSON.stringify(
+        dataContext !== null
+          ? dataContext
+          : { error: 'DB를 불러오지 못했어요. schema.sql 실행과 CSV 임포트가 완료됐는지 확인해주세요.' },
+        null,
+        2,
+      )}`,
+    },
+  ]
 
-    const tools = isSearchType
-      ? [{ type: 'web_search_20260209' as const, name: 'web_search' as const }]
-      : undefined
+  const tools = isSearchType
+    ? [{ type: 'web_search_20260209' as const, name: 'web_search' as const }]
+    : undefined
 
-    let currentMessages: Anthropic.MessageParam[] = [
-      ...history.slice(-10).map((h) => ({ role: h.role, content: h.content })),
-      { role: 'user', content: message },
-    ]
+  const initialMessages: Anthropic.MessageParam[] = [
+    ...history.slice(-10).map((h) => ({ role: h.role, content: h.content })),
+    { role: 'user', content: message },
+  ]
 
-    let assistantText = ''
+  const encoder = new TextEncoder()
 
-    for (let iter = 0; iter < 5; iter++) {
-      const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
-        max_tokens: isSearchType ? 2000 : 1000,
-        system: systemBlocks,
-        messages: currentMessages,
-        ...(tools ? { tools } : {}),
-      })
-
-      for (const block of response.content) {
-        if (block.type === 'text') assistantText += block.text
+  // SSE 스트림 반환 — web_search 도중에도 커넥션 유지, 504 방지
+  const readable = new ReadableStream({
+    async start(controller) {
+      const send = (data: object | '[DONE]') => {
+        const line = data === '[DONE]'
+          ? 'data: [DONE]\n\n'
+          : `data: ${JSON.stringify(data)}\n\n`
+        controller.enqueue(encoder.encode(line))
       }
 
-      if (response.stop_reason !== 'pause_turn') break
+      try {
+        let currentMessages = initialMessages
+        let assistantText = ''
 
-      // 서버사이드 도구 루프가 10회 한도에 도달하면 pause_turn 반환 — 전체 대화를 다시 전송해 재개
-      currentMessages = [
-        ...currentMessages,
-        { role: 'assistant', content: response.content as Anthropic.ContentBlockParam[] },
-      ]
-    }
+        for (let iter = 0; iter < 5; iter++) {
+          const msgStream = anthropic.messages.stream({
+            model: 'claude-sonnet-4-6',
+            max_tokens: isSearchType ? 2000 : 1000,
+            system: systemBlocks,
+            messages: currentMessages,
+            ...(tools ? { tools } : {}),
+          })
 
-    // 대화 이력 저장
-    await supabase.from('chat_messages').insert([
-      { session_id, role: 'user', content: message },
-      { session_id, role: 'assistant', content: assistantText },
-    ])
+          for await (const event of msgStream) {
+            if (
+              event.type === 'content_block_delta' &&
+              event.delta.type === 'text_delta'
+            ) {
+              assistantText += event.delta.text
+              send({ chunk: event.delta.text })
+            }
+          }
 
-    return NextResponse.json({ response: assistantText })
-  } catch (err) {
-    console.error('Chat API error:', err)
-    const msg = err instanceof Error ? err.message : '알 수 없는 오류'
-    return NextResponse.json({ error: msg }, { status: 500 })
-  }
+          const final = await msgStream.finalMessage()
+          if (final.stop_reason !== 'pause_turn') break
+
+          // pause_turn: 서버사이드 도구 10회 한도 도달 → 전체 대화 재전송으로 재개
+          currentMessages = [
+            ...currentMessages,
+            { role: 'assistant', content: final.content as Anthropic.ContentBlockParam[] },
+          ]
+        }
+
+        await supabase.from('chat_messages').insert([
+          { session_id, role: 'user', content: message },
+          { session_id, role: 'assistant', content: assistantText },
+        ])
+
+        send('[DONE]')
+      } catch (err) {
+        console.error('Chat API streaming error:', err)
+        const errMsg = err instanceof Error ? err.message : '알 수 없는 오류'
+        send({ error: errMsg })
+      } finally {
+        controller.close()
+      }
+    },
+  })
+
+  return new Response(readable, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+    },
+  })
 }
