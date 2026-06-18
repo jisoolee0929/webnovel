@@ -498,3 +498,90 @@ app/layout.tsx (Server Component)
 - `npm run build` → TypeScript 오류 없음, `/api/chat` 라우트 `ƒ`(Dynamic) 확인
 - `POST /api/chat` → 빈 메시지: `{"error":"메시지를 입력해주세요"}` ✅
 - `POST /api/chat` → 실제 메시지: Anthropic API 호출 확인 (크레딧 부족 시 과금 오류 반환, 코드 정상)
+
+---
+
+### ✅ 데이터 업데이트 반영 (2026-06-15 완료) — PR #12~#15
+
+CHANGE.md 기반 데이터 정제 및 DB 스키마 변경 반영.
+
+---
+
+#### PR #12 — works 테이블 신규 컬럼 UI 반영
+
+**변경된 파일**
+
+| 파일 | 변경 내용 |
+|------|----------|
+| `app/page.tsx` | topWorks 쿼리: `works` → `works_public`, `author`·`genre` 추가 SELECT |
+| `components/dashboard/TopWorksTable.tsx` | `Work` 타입 + 테이블 헤더·바디에 장르·작가 열 추가 |
+| `components/WorkDetailModal.tsx` | `WorkInfo` 타입 확장, SELECT에 `author`·`genre`·`rating` 추가, 모달 UI에 표시 |
+| `data/works.csv` | 235개 → 204개 (영상 콘텐츠 제거, 중복 통합, 제목 정리) |
+| `data/works_for_supabase.csv` | author·genre·rating 포함 Supabase 임포트용 신규 파일 |
+
+**works 테이블 추가 컬럼**
+
+| 컬럼 | 타입 | 설명 |
+|------|------|------|
+| `author` | TEXT | 작가명 (없으면 빈 문자열) |
+| `genre` | TEXT | 장르 (없으면 빈 문자열) |
+| `rating` | NUMERIC(3,1) | 플랫폼 별점 — 문피아는 NULL, 네이버·카카오 10점 만점 |
+
+**UI 변경**
+- 작품 랭킹 테이블: 6열 (순위 / 작품명 / 플랫폼 / 장르 / 작가 / 구매 편수)
+- 작품 상세 모달: 작가(✍️) · 장르(📚) · 플랫폼 별점(⭐ N / 10) 조건부 표시
+  - `rating = null`(문피아)이면 별점 줄 미표시
+  - 빈 장르·작가는 `—` 표시
+
+**클라이언트 조회 원칙**
+- 클라이언트 컴포넌트는 반드시 `works_public` 뷰 사용 (금액·날짜 컬럼 제외됨)
+- `works` 테이블 직접 조회는 챗봇 API Route (서버) 에서만 허용
+
+---
+
+#### PR #13 — 챗봇 장르 기반 추천 분기 추가
+
+**변경된 파일**: `app/api/chat/route.ts`
+
+**분기 순서 (변경 후)**
+```
+work_stats → reviews → genre (신규) → recommendation → summary
+```
+
+- `genre` 분기 추가: `장르` 키워드 또는 `무협·판타지·로맨스·현대·회귀·헌터·아포칼립스·게임·먹방·육아·학원` 감지 시 진입
+- `works` 테이블에서 `ilike('genre', '%키워드%')` 필터 후 purchase_count 내림차순 10개 반환
+- `genre`를 `recommendation` 앞에 배치 → "무협 추천해줘" 같은 복합 질문도 genre로 분류
+
+---
+
+#### PR #14 — 챗봇 System Prompt 수정
+
+**변경된 파일**: `app/api/chat/route.ts` (`STATIC_SYSTEM` 상수)
+
+```
+// 변경 전
+총 14,703건, 약 146만원 어치의 웹소설을 구매했어.
+
+// 변경 후
+총 14,703건의 웹소설을 구매했어. 구매한 작품은 총 204개야.
+장르 정보가 있는 작품은 works 테이블의 genre 컬럼을 참고해.
+```
+
+- 작품 수 반영 (235개 → 204개)
+- "약 146만원" 제거 (화면 노출 제한 정책 일관성)
+- 장르 컬럼 활용 안내 추가
+
+---
+
+#### PR #15 — 대시보드 장르별 구매 비중 도넛 차트 추가
+
+**추가된 파일**: `components/dashboard/GenreDonut.tsx`
+**변경된 파일**: `app/page.tsx`
+
+**집계 방식**
+- `works_public`에서 `genre`, `purchase_count` 조회
+- 복수 장르(예: "무협, 판타지") 쉼표 분리 후 각 장르에 purchase_count **각각** 합산
+- 상위 7개 장르 표시, 나머지는 "기타"로 합산
+- 빈 genre는 "기타"로 처리
+
+**위치**: 플랫폼/요일 차트 아래, 월별 라인 차트 위 (전체 너비)

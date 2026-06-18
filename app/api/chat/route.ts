@@ -50,7 +50,10 @@ async function fetchContext(message: string, type: string): Promise<unknown> {
     if (type === 'work_stats') {
       const title = extractTitle(message)
       const { data, error } = await supabase.rpc('get_work_stats', { p_title: title || message })
-      if (error) throw error
+      if (error) {
+        console.error('[chat] get_work_stats error:', error.message)
+        throw error
+      }
       return data ?? { message: '해당 작품을 찾을 수 없어요' }
     }
     if (type === 'reviews') {
@@ -59,35 +62,54 @@ async function fetchContext(message: string, type: string): Promise<unknown> {
         .select('title, platform, rating, short_review')
         .order('rating', { ascending: false })
         .limit(20)
-      if (error) throw error
+      if (error) {
+        console.error('[chat] reviews query error:', error.message)
+        throw error
+      }
       return data ?? []
     }
     if (type === 'recommendation') {
       const { data, error } = await supabase.rpc('get_top_rated_works', { p_min_rating: 4.0 })
-      if (error) throw error
+      if (error) {
+        console.error('[chat] get_top_rated_works error:', error.message)
+        throw error
+      }
       // RPC가 null 반환 = 평점 높은 리뷰 없음 (DB 오류 아님)
       return data ?? []
     }
     if (type === 'genre') {
       const extractedGenre = GENRE_KEYWORDS.find((g) => message.includes(g)) ?? ''
-      const query = supabase
+      let query = supabase
         .from('works')
-        .select('title, platform, author, genre, rating, purchase_count')
+        .select('title, platform, author, genre, purchase_count')
         .order('purchase_count', { ascending: false })
         .limit(10)
       if (extractedGenre) {
-        query.ilike('genre', `%${extractedGenre}%`)
+        query = query.ilike('genre', `%${extractedGenre}%`)
       }
       const { data, error } = await query
-      if (error) throw error
+      if (error) {
+        console.error('[chat] genre query error (author/genre 컬럼 없을 수 있음):', error.message)
+        // author/genre 컬럼이 DB에 없을 경우 기본 컬럼으로 폴백
+        const { data: fallback, error: fbError } = await supabase
+          .from('works')
+          .select('title, platform, purchase_count')
+          .order('purchase_count', { ascending: false })
+          .limit(10)
+        if (fbError) throw fbError
+        return fallback ?? []
+      }
       return data ?? []
     }
     // summary (default)
     const { data, error } = await supabase.rpc('get_spending_summary')
-    if (error) throw error
+    if (error) {
+      console.error('[chat] get_spending_summary error:', error.message)
+      throw error
+    }
     return data
-  } catch {
-    // 실제 오류(테이블 없음, 네트워크 등)만 null 반환
+  } catch (err) {
+    console.error('[chat] fetchContext failed:', err instanceof Error ? err.message : err)
     return null
   }
 }
